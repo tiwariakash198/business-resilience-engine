@@ -6,7 +6,7 @@ from logic import analyze_inventory_portfolio
 st.set_page_config(page_title="Supply Shock Matrix", page_icon="📦", layout="wide")
 
 # 2. Main Header
-st.title("📦 Module 2: Portfolio Risk Analysis")
+st.title("📦 Portfolio Risk Analysis")
 st.markdown("Diagnose systemic logistical impact across an entire supply chain portfolio.")
 st.divider()
 
@@ -54,8 +54,14 @@ def highlight_risk(val):
         return 'background-color: rgba(0, 192, 75, 0.2)' # Light Green
     return ''
 
-# Display the final styled dataframe
+# Display the final styled dataframe with formatted decimals
 st.dataframe(
-    processed_portfolio.style.map(highlight_risk, subset=['Risk Status']), 
+    processed_portfolio.style
+    .map(highlight_risk, subset=['Risk Status'])
+    .format({
+        "Inventory Runway": "{:.1f}", 
+        "Total Lead Time": "{:.1f}", 
+        "Stoppage Gap": "{:.1f}"
+    }), 
     use_container_width=True
 )
