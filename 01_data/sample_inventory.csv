@@ -1,7 +1,7 @@
-SKU,Current Stock,Daily Consumption,Production Time,Transit Time,Risk Buffer
-Semiconductors,5000,200,30,15,5
-Hydraulic Valves,1200,50,15,10,3
-Copper Wiring,15000,1000,10,5,2
-Titanium Fasteners,800,100,45,20,10
-Industrial Lubricant,3000,150,5,3,2
-Rubber Seals,450,50,20,10,5
+SKU,Current Stock,Daily Consumption,Total Lead Time,Regular Unit Cost,Alt Unit Cost,Sales Price
+Semiconductors,5000,200,45,150,250,1200
+Hydraulic Valves,1200,50,25,85,130,550
+Copper Wiring,15000,1000,15,12,20,150
+Titanium Fasteners,800,100,65,250,350,4500
+Industrial Lubricant,3000,150,8,40,65,300
+Rubber Seals,450,50,30,5,12,80

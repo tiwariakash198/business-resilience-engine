@@ -1,72 +1,85 @@
 import pandas as pd
 import numpy as np
 
-def calculate_stoppage_gap(current_stock, daily_consumption, production_time, transit_time, risk_buffer):
+def sanitize_inventory_data(df):
     """
-    Module 1: Calculates the exact line-stoppage gap for a single localized supply shock.
-    Used primarily for single-scenario interactive UI testing.
+    Module 1: Cleans data and forces numeric types to prevent app crashes.
     """
-    inventory_runway = round(current_stock / daily_consumption, 1)
-    total_lead_time = production_time + transit_time + risk_buffer
-    stoppage_gap = round(total_lead_time - inventory_runway, 1)
+    clean_df = df.copy()
+    
+    # Force numeric types (turns bad strings into NaN)
+    numeric_cols = [
+        'Current Stock', 'Daily Consumption', 'Total Lead Time', 
+        'Regular Unit Cost', 'Alt Unit Cost', 'Sales Price'
+    ]
+    
+    for col in numeric_cols:
+        if col in clean_df.columns:
+            clean_df[col] = pd.to_numeric(clean_df[col], errors='coerce')
+
+    # Identify rows missing math-critical columns
+    critical_cols = ['Current Stock', 'Daily Consumption', 'Total Lead Time']
+    if all(col in clean_df.columns for col in critical_cols):
+        clean_df['is_valid'] = clean_df[critical_cols].notnull().all(axis=1)
+    else:
+        clean_df['is_valid'] = False
+        
+    return clean_df
+
+def calculate_base_metrics(df):
+    """
+    Module 2: Calculates Logistics Risk and Static Financial Exposure.
+    """
+    if df.empty or not df['is_valid'].any():
+        return df
+
+    valid = df['is_valid'] == True
+    
+    # --- LOGISTICS CALCULATIONS ---
+    df.loc[valid, 'Inventory Runway'] = df.loc[valid, 'Current Stock'] / df.loc[valid, 'Daily Consumption']
+    df.loc[valid, 'Stoppage Gap'] = df.loc[valid, 'Total Lead Time'] - df.loc[valid, 'Inventory Runway']
+
+    # Assign Risk Status
+    conditions = [
+        (~df['is_valid']),
+        (df['Stoppage Gap'] > 0),
+        (df['Stoppage Gap'] > -5) & (df['Stoppage Gap'] <= 0)
+    ]
+    choices = ['⚠️ INCOMPLETE', 'CRITICAL', 'WARNING']
+    df['Risk Status'] = np.select(conditions, choices, default='SAFE')
+    
+    # --- FINANCIAL BASELINE CALCULATIONS ---
+    # 1. Capital Locked (Money stuck in warehouse)
+    df.loc[valid, 'Capital Locked ($)'] = df.loc[valid, 'Current Stock'] * df.loc[valid, 'Regular Unit Cost']
+    
+    # 2. Baseline Loss (Revenue lost during stoppage gap)
+    # We clip to 0 so we don't show "negative loss" for SAFE items
+    raw_loss = (df.loc[valid, 'Stoppage Gap'] * df.loc[valid, 'Daily Consumption']) * df.loc[valid, 'Sales Price']
+    df.loc[valid, 'Baseline Loss ($)'] = raw_loss.clip(lower=0)
+    
+    return df
+
+def simulate_mitigation_scenario(row, freight_premium, tariff_pct, days_saved):
+    """
+    Module 3: The dynamic calculator for the Streamlit UI.
+    Takes a single SKU row and UI slider inputs to calculate Net Profit Impact.
+    """
+    # Recalculate stoppage gap based on faster shipping
+    new_stoppage_gap = max(0, row['Stoppage Gap'] - days_saved)
+    units_needed = new_stoppage_gap * row['Daily Consumption']
+    
+    # Alternate Landed Cost = Base + Freight + Tariffs
+    alt_landed_cost = row['Alt Unit Cost'] + freight_premium + (row['Alt Unit Cost'] * (tariff_pct / 100))
+    
+    # Cost to mitigate vs Revenue Saved
+    mitigation_cost = (alt_landed_cost - row['Regular Unit Cost']) * units_needed
+    revenue_saved = row['Baseline Loss ($)'] - (new_stoppage_gap * row['Daily Consumption'] * row['Sales Price'])
+    
+    npi = revenue_saved - mitigation_cost
     
     return {
-        "Inventory Runway (Days)": inventory_runway,
-        "Total Lead Time (Days)": total_lead_time,
-        "Stoppage Gap (Days)": stoppage_gap
+        'Alt Landed Cost': alt_landed_cost,
+        'Mitigation Cost': mitigation_cost,
+        'Revenue Saved': revenue_saved,
+        'Net Profit Impact': npi
     }
-
-def analyze_inventory_portfolio(df):
-    """
-    Module 2 Core: Ingests a DataFrame of inventory lines and applies vectorized 
-    mathematics to identify systemic risk across an entire supply chain portfolio.
-    """
-    # Create a copy to avoid altering the original ingested data
-    analysis_df = df.copy()
-    
-    # 1. Vectorized Math (Calculates all rows instantly instead of using slow loops)
-    analysis_df['Inventory Runway'] = (analysis_df['Current Stock'] / analysis_df['Daily Consumption']).round(1)
-    analysis_df['Total Lead Time'] = analysis_df['Production Time'] + analysis_df['Transit Time'] + analysis_df['Risk Buffer']
-    analysis_df['Stoppage Gap'] = (analysis_df['Total Lead Time'] - analysis_df['Inventory Runway']).round(1)
-    
-    # 2. Automated Risk Categorization (Business Logic)
-    conditions = [
-        (analysis_df['Stoppage Gap'] > 0),
-        (analysis_df['Stoppage Gap'] == 0),
-        (analysis_df['Stoppage Gap'] < 0)
-    ]
-    choices = ['CRITICAL', 'WARNING', 'SAFE']
-    
-    # Apply the categorization based on the conditions above
-    analysis_df['Risk Status'] = np.select(conditions, choices, default='UNKNOWN')
-    
-    return analysis_df
-
-# --- TEST BLOCK ---
-if __name__ == "__main__":
-    print("\n--- Module 2: Bulk Data Ingestion & Risk Analysis Test ---")
-    
-    # Simulating data ingested from a corporate database or CSV upload
-    mock_dataset = {
-        'SKU': ['Microchips', 'Steel Chassis', 'Lithium Batteries', 'Rubber Tires'],
-        'Current Stock': [10000, 500, 2000, 8000],
-        'Daily Consumption': [500, 50, 150, 400],
-        'Production Time': [20, 10, 25, 5],
-        'Transit Time': [15, 5, 20, 10],
-        'Risk Buffer': [5, 2, 7, 3]
-    }
-    
-    # Convert dictionary to a pandas DataFrame
-    df_raw = pd.DataFrame(mock_dataset)
-    
-    print("\n1. Raw Data Ingested (First 2 Columns):")
-    print(df_raw[['SKU', 'Current Stock']])
-    print("-" * 50)
-    
-    # Run the analytical engine on the entire dataset
-    processed_portfolio = analyze_inventory_portfolio(df_raw)
-    
-    print("\n2. Processed Risk Portfolio (Output):")
-    print(processed_portfolio[['SKU', 'Stoppage Gap', 'Risk Status']])
-    print("-" * 50)
-    print("Test Complete. Engine is ready for scale.\n")
