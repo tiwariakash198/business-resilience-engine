@@ -66,11 +66,17 @@ While the current architecture resolves micro-financial and supplier-level bottl
 To utilize the core engine, upload a CSV containing these 7 foundational metrics per item:
 
 `SKU`: Unique identifier for the material/part
+
 `Current Stock`: Total physical units available
+
 `Daily Consumption`: Units consumed per day of active production
+
 `Total Lead Time`: Combined days required for production, transit, and safety buffer
+
 `Regular Unit Cost`: Baseline purchase price per unit from the primary supplier
+
 `Alt Unit Cost`: Emergency base price per unit from a secondary backup supplier
+
 `Sales Price`: Finished product revenue dependent on this specific part
 
 ---
