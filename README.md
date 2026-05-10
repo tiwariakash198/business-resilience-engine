@@ -75,11 +75,13 @@ To utilize the core engine, upload a CSV containing these 7 foundational metrics
 
 ---
 
-## 🛠️ Local Installation & Execution
+## ***Local Installation & Execution***
+
+View the source repository on [GitHub](https://github.com/yourusername/business-resilience-engine). To run the resilience engine locally, follow these steps:
 
 ```bash
 # 1. Clone the repository
-git clone [https://github.com/tiwariakash198/business-resilience-engine.git](https://github.com/tiwariakash198/business-resilience-engine.git)
+git clone https://github.com/yourusername/business-resilience-engine.git
 cd business-resilience-engine
 
 # 2. Install required dependencies
