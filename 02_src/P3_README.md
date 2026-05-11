@@ -27,7 +27,7 @@ $$\text{Carrying Rate (\%)} = \left( \frac{\text{Capital Cost} + \text{Storage} 
 
 #### ***SKU-Level Annual Overhead Allocation***
 $$
-\text{Annual Overhead (USD)} = \text{Current Stock} \times \text{Regular Unit Cost} \times \left( \frac{\text{Carrying Rate [\%]}}{100} \right)
+\text{Annual Overhead (USD)} = \text{Current Stock} \times \text{Regular Unit Cost} \times \left( \frac{\text{Carrying Rate (Pct)}}{100} \right)
 $$
 
 #### ***Sensitivity Matrix (Breakeven Delta)***
