@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import logic
 
 # --- PAGE SETUP ---
@@ -8,45 +9,41 @@ st.title("📦 Supply Chain Resilience Engine")
 st.markdown("Evaluating Logistics Risk & Financial Mitigation Strategies.")
 
 # --- 1. DATA INPUT & UX ONBOARDING ---
-st.sidebar.header("📁 Data Input")
-uploaded_file = st.sidebar.file_uploader("Upload file", type=['csv'])
+st.sidebar.header("📁 Data Input Pipeline")
 
-# Define the Template Data
-template_data = {
-    'SKU': ['Example Part A', 'Example Part B', 'Example Part C'],
-    'Current Stock': [5000, 1200, 800],
-    'Daily Consumption': [200, 50, 100],
-    'Total Lead Time': [45, 25, 65],
-    'Regular Unit Cost': [150.0, 85.0, 250.0],
-    'Alt Unit Cost': [250.0, 130.0, 350.0],
-    'Sales Price': [1200.0, 550.0, 4500.0]
-}
-template_df = pd.DataFrame(template_data)
+# Dual-Option Ingestion Selector
+data_source = st.sidebar.radio(
+    "Select Data Source:",
+    ("Use Sample Inventory Baseline", "Upload Custom Enterprise CSV")
+)
 
 raw_df = None
 
-# The "Empty State" (When no file is uploaded)
-if uploaded_file is None:
-    st.info("👋 Welcome to the Resilience Engine. Please upload your inventory data in the sidebar to begin.")
-    
-    st.subheader("📋 Required CSV Format")
-    st.markdown("To run the financial diagnostics, your file must contain these exact 7 columns:")
-    st.dataframe(template_df, use_container_width=True)
-    
-    # Provide a download button for the template
-    csv_template = template_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Template CSV",
-        data=csv_template,
-        file_name='inventory_template.csv',
-        mime='text/csv',
-    )
-else:
-    # Load the actual file once uploaded
+if data_source == "Use Sample Inventory Baseline":
+    # Mode A: Reads your native repository asset cleanly
     try:
-        raw_df = pd.read_csv(uploaded_file)
+        raw_df = pd.read_csv("..\\01_data\\sample_inventory.csv")
+        st.sidebar.info("💡 Staging Mode: Loaded sample_inventory.csv")
     except Exception as e:
-        st.error(f"Error reading the CSV file: {e}. Please ensure it is a valid CSV.")
+        st.error("⚠️ Baseline CSV not found. Please ensure 'sample_inventory.csv' is committed to the root repository.")
+        st.stop()
+else:
+    # Mode B: Renders the custom file dropzone cleanly
+    uploaded_file = st.sidebar.file_uploader("Upload Enterprise CSV", type=['csv'])
+    
+    if uploaded_file is not None:
+        try:
+            raw_df = pd.read_csv(uploaded_file)
+            st.sidebar.success("Enterprise CSV Ingested Successfully!")
+        except Exception as e:
+            st.error(f"Error reading the CSV file: {e}. Please ensure it is a valid 7-column layout.")
+            st.stop()
+    else:
+        # Crucial Guardrail: Prevents downstream calculation errors when dropzone is empty
+        st.info("👋 Welcome to the Resilience Engine. Please upload your enterprise inventory data in the sidebar, or switch back to the Sample Baseline to explore.")
+        st.stop()
+
+st.sidebar.divider()
 
 # --- 2. BACKEND PROCESSING & DASHBOARD ---
 if raw_df is not None:
