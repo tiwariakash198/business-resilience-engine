@@ -26,9 +26,7 @@ The engine avoids arbitrary default percentages by ingesting granular, accountin
 $$\text{Carrying Rate (\%)} = \left( \frac{\text{Capital Cost} + \text{Storage} + \text{Service} + \text{Risk}}{\text{Total Average Inventory Baseline}} \right) \times 100$$
 
 #### ***SKU-Level Annual Overhead Allocation***
-$$
-\text{Annual Overhead (USD)} = \text{Current Stock} \times \text{Regular Unit Cost} \times \left( \frac{\text{Carrying Rate (\%)}}{100} \right)
-$$
+$$\text{Annual Overhead (USD)} = \text{Current Stock} \times \text{Regular Unit Cost} \times \left( \frac{\text{Carrying Rate} \, (\%)}{100} \right)$$
 
 #### ***Sensitivity Matrix (Breakeven Delta)***
 $$\text{Delta} = \text{Annual Holding Overhead} - \text{Emergency Mitigation Premium}$$
