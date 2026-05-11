@@ -1,3 +1,4 @@
+from pathlib import Path
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -20,12 +21,20 @@ data_source = st.sidebar.radio(
 raw_df = None
 
 if data_source == "Use Sample Inventory Baseline":
-    # Mode A: Reads your native repository asset cleanly
+    target_csv_path = "Unknown absolute path" 
+    
     try:
-        raw_df = pd.read_csv("..\\01_data\\sample_inventory.csv")
-        st.sidebar.info("💡 Staging Mode: Loaded sample_inventory.csv")
+        # 2. Resolve the absolute Windows path using the correct Path object
+        current_dir = Path(__file__).resolve().parent
+        target_csv_path = current_dir.parent / "01_data" / "sample_inventory.csv"
+        
+        # 3. Ingest natively
+        raw_df = pd.read_csv(target_csv_path)
+        st.sidebar.info("💡 Staging Mode: Loaded sample baseline natively.")
+        
     except Exception as e:
-        st.error("⚠️ Baseline CSV not found. Please ensure 'sample_inventory.csv' is committed to the root repository.")
+        # Now safely prints the exact path if the file is missing
+        st.error(f"⚠️ Baseline CSV not found. Windows searched at:\n`{target_csv_path}`\n\n**System Error:** {e}")
         st.stop()
 else:
     # Mode B: Renders the custom file dropzone cleanly
