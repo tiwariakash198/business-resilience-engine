@@ -83,3 +83,113 @@ def simulate_mitigation_scenario(row, freight_premium, tariff_pct, days_saved):
         'Revenue Saved': revenue_saved,
         'Net Profit Impact': npi
     }
+
+from typing import Any, Tuple, Dict # --- PHASE 3: CARRYING COST CALCULATOR AND SENSITIVITY MATRIX ---
+
+def calculate_carrying_cost_rate(
+    total_inventory_value: float,
+    wacc_pct: float,
+    annual_rent_utilities: float,
+    warehouse_labor: float,
+    annual_insurance: float,
+    annual_taxes: float,
+    estimated_shrinkage: float,
+    obsolescence_scrap: float
+) -> Dict[str, Any]:
+    """
+    Deconstructs carrying overhead into raw operational dollar inputs.
+    Calculates absolute dollar spend and computes the definitive holding percentage safely.
+    """
+    try:
+        val = float(total_inventory_value)
+        if val <= 0:
+            return {
+                "rate_pct": 0.0, 
+                "total_dollars": 0.0, 
+                "error": "Total inventory value must be greater than $0 to derive a percentage."
+            }
+
+        # 1. Capital Cost ($) = Total Value * (WACC % / 100)
+        capital_cost_dollars = val * (float(wacc_pct) / 100.0)
+        
+        # 2. Storage Overhead ($)
+        storage_dollars = float(annual_rent_utilities) + float(warehouse_labor)
+        
+        # 3. Service Overhead ($)
+        service_dollars = float(annual_insurance) + float(annual_taxes)
+        
+        # 4. Risk Overhead ($)
+        risk_dollars = float(estimated_shrinkage) + float(obsolescence_scrap)
+        
+        # Summing total dollar overhead
+        total_holding_dollars = capital_cost_dollars + storage_dollars + service_dollars + risk_dollars
+        
+        # Deriving the final auditable percentage
+        final_rate_pct = (total_holding_dollars / val) * 100.0
+        
+        return {
+            "rate_pct": round(final_rate_pct, 2),
+            "total_dollars": round(total_holding_dollars, 2),
+            "breakdown": {
+                "capital": round(capital_cost_dollars, 2),
+                "storage": round(storage_dollars, 2),
+                "service": round(service_dollars, 2),
+                "risk": round(risk_dollars, 2)
+            }
+        }
+    except (ValueError, TypeError):
+        return {"rate_pct": 0.0, "total_dollars": 0.0, "error": "Invalid numeric inputs provided."}
+
+def calculate_sku_holding_cost(
+    current_stock: Any, 
+    unit_cost: Any, 
+    carrying_rate_pct: float
+) -> float:
+    """
+    Calculates the annual overhead burning on the shelves for a specific SKU row.
+    Safely ignores 'Not provided' flags or corrupted string fields.
+    """
+    try:
+        if str(current_stock).strip().lower() == "not provided" or str(unit_cost).strip().lower() == "not provided":
+            return 0.0
+            
+        stock = float(current_stock)
+        cost = float(unit_cost)
+        
+        if stock <= 0 or cost <= 0 or carrying_rate_pct <= 0:
+            return 0.0
+            
+        return round(stock * cost * (carrying_rate_pct / 100.0), 2)
+    except (ValueError, TypeError):
+        return 0.0
+
+def evaluate_breakeven_delta(
+    annual_holding_cost: float, 
+    mitigation_premium: float
+) -> Tuple[float, str, str]:
+    """
+    Compares specific SKU holding overhead directly against the emergency expedite premium.
+    Returns: (Delta amount, Actionable Recommendation string, Winning Strategy Tag)
+    """
+    try:
+        delta = round(annual_holding_cost - mitigation_premium, 2)
+        
+        if delta > 0:
+            rec = (
+                f"Holding overhead exceeds emergency freight premium by ${delta:,.2f}. "
+                "Recommendation: Pivot to a leaner buffer stock and absorb expedited shipping risks."
+            )
+            tag = "LEAN_FAVORED"
+        elif delta < 0:
+            rec = (
+                f"Emergency premium exceeds annual storage overhead by ${abs(delta):,.2f}. "
+                "Recommendation: Maintain physical safety stock buffer; local storage is highly cost-effective."
+            )
+            tag = "BUFFER_FAVORED"
+        else:
+            rec = "Perfect financial equilibrium. Current buffer overhead matches expedite exposure perfectly."
+            tag = "NEUTRAL"
+            
+        return delta, rec, tag
+    except (ValueError, TypeError):
+        return 0.0, "Analysis unavailable due to computation error.", "ERROR"
