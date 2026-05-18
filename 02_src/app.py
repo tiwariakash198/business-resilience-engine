@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import logic
+from outbound_logic import evaluate_outbound_resilience
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Supply Chain Resilience Engine", layout="wide")
@@ -306,3 +307,102 @@ if activate_tco_module:
             st.info(f"**Executive Action Receipt:** {rec_text}")
         else:
             st.warning("No valid numeric SKU rows available to run the sensitivity matrix.")
+
+
+# --- 8. OUTBOUND REVENUE DEFENSE ENGINE ---
+
+st.markdown("---")
+st.header("📦 Phase 4: Outbound Revenue Defense Engine")
+st.write("Simulate fulfillment latency, dynamic stockout thresholds, and evaluate SLA penalties vs. client retention trade-offs.")
+
+col_inputs, col_outputs = st.columns([1.2, 1.8])
+
+# ==========================================
+# LEFT COLUMN: INPUTS
+# ==========================================
+with col_inputs:
+    st.subheader("1. Logistics & SLA Stress")
+    standard_delay = st.slider("Projected Standard Ocean Delay (Days)", min_value=1, max_value=60, value=35)
+    order_val = st.number_input("Current Order Value (USD)", value=40000, step=5000)
+    std_freight = st.number_input("Standard Carrier Freight (USD)", value=3500, step=500)
+    
+    st.markdown("##### ✈️ Mitigation Strategy")
+    prem_freight = st.number_input("Expedited Air Premium (USD)", value=15000, step=1000)
+    
+    max_savable = standard_delay - 1 if standard_delay > 1 else 0
+    days_saved = st.slider(
+        "Days Saved by Premium Freight", min_value=0, max_value=max_savable, value=min(27, max_savable),
+        help="How many days of transit time are you buying back by paying the premium?"
+    )
+    premium_delay = standard_delay - days_saved
+    
+    st.markdown("---")
+    daily_penalty = st.number_input("Contractual Daily SLA Penalty (USD)", value=1000, step=100)
+    
+    st.markdown("---")
+    st.subheader("2. Operational Runway")
+    buf_days = st.slider("Client Buffer Stock Reserves (Days)", min_value=0, max_value=30, value=12)
+    grace_days = st.slider("Contractual Grace Period (Days)", min_value=0, max_value=10, value=3)
+    
+    threshold_cliff = buf_days + grace_days
+    
+    st.markdown("---")
+    st.subheader("3. Strategic Pivot Parameters")
+    
+    # === CASCADING UI LOGIC ===
+    if standard_delay <= threshold_cliff:
+        st.info(f"💡 **Operational Safety:** Standard delay ({standard_delay} days) is within the client's runway ({threshold_cliff} days). Strategic parameters inactive.")
+        ann_clv = 300000; friction = 0.15; alt_mkt_val = 32000
+        
+    else:
+        st.warning(f"⚠️ **Standard Baseline Breached!** Doing nothing results in a stockout. Evaluate CLV exposure:")
+        ann_clv = st.number_input("Annualized Account CLV (USD)", value=300000, step=25000, help="The total yearly revenue expected from this client relationship. Used to calculate potential churn exposure in a stockout scenario.")
+        
+        if premium_delay <= threshold_cliff:
+            st.success(f"✨ **Mitigation Viable!** Premium freight reduces delay to {premium_delay} days, preventing stockout. Pivot disabled.")
+            friction = 0.15; alt_mkt_val = 0.0
+        else:
+            st.error(f"🚨 **Mitigation Fails!** Premium freight still results in a {premium_delay - threshold_cliff}-day stockout. Evaluate Pivot:")
+            friction = st.slider("Client Switching Friction (CSF)", min_value=0.0, max_value=1.0, value=0.15)
+            st.info("📊 **CSF:** 0.0 (High Flight Risk) to 1.0 (Captive Client)")
+            alt_mkt_val = st.number_input("Alternative Client/Market Demand (USD)", value=32000, step=2000)
+
+# ==========================================
+# ENGINE EXECUTION
+# ==========================================
+result = evaluate_outbound_resilience(
+    order_value=order_val, annualized_clv=ann_clv, standard_freight=std_freight, premium_freight=prem_freight,
+    standard_delay_days=standard_delay, premium_delay_days=premium_delay, daily_sla_penalty=daily_penalty,
+    client_buffer_days=buf_days, grace_period_days=grace_days, switching_friction=friction, alt_market_recovery=alt_mkt_val
+)
+
+# ==========================================
+# RIGHT COLUMN: OUTPUTS
+# ==========================================
+with col_outputs:
+    st.subheader("Rescue Decision Desk")
+    if "horizon" in result:
+        st.caption(f"**Operational Status:** `{result['horizon']}`")
+        
+    if result["color"] == "success": st.success(f"### 🟢 {result['action']}")
+    elif result["color"] == "warning": st.warning(f"### 🟡 {result['action']}")
+    else: st.error(f"### 🔴 {result['action']}")
+        
+    st.markdown(f"**Strategic Rationale:** {result['rationale']}")
+    st.markdown("#### Impact & Financial Exposure")
+    
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Incurred Premium", f"USD {result['freight_premium']:,.2f}", help="Freight premium actually spent based on the final decision.")
+    m2.metric("Capital at Risk", f"USD {result['value_at_risk']:,.2f}")
+    m3.metric("Net Preserved Value", f"USD {abs(result['net_benefit']):,.2f}", delta=float(result['net_benefit']))
+    
+    st.markdown("---")
+    st.markdown("#### Elasticity Telemetry")
+    d1, d2, d3 = st.columns(3)
+    d1.metric("Calculated Churn Risk", f"{result['calculated_churn'] * 100:.1f}%")
+    d2.metric("Stockout Cliff", f"{result['threshold_days']} Days", help="The point at which the client runs out of buffer stock and experiences a service disruption.")
+    
+    if "PIVOT" in result["action"]:
+        d3.metric("Alternative Yield", f"USD {alt_mkt_val:,.2f}")
+    else:
+        d3.metric("Residual SLA Fines", f"USD {result.get('residual_penalty', 0.0):,.2f}", help="The remaining SLA penalties after considering all mitigations.")
