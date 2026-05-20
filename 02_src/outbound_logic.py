@@ -1,106 +1,85 @@
-def _get_horizon(delay: int, threshold: int) -> str:
-    if delay < threshold:
-        return f"Tactical Horizon ({threshold - delay} Buffer Days Remaining)"
-    elif delay == threshold:
-        return "Critical Horizon (Zero Buffer - Arriving Exact Day of Stockout)"
-    else:
-        return f"Strategic Horizon (Active Stockout: Day {delay - threshold})"
+# 02_src/outbound_logic.py
 
-def _calculate_exposure(days_delayed, order_value, annualized_clv, daily_sla_penalty, strategic_threshold, grace_period_days, switching_friction, base_churn_prob):
-    billable_late_days = max(0, days_delayed - grace_period_days)
-    total_sla_penalty = min(billable_late_days * daily_sla_penalty, order_value)
-    
-    if days_delayed <= strategic_threshold:
-        calculated_churn = base_churn_prob
-        clv_exposure = 0.0  
-    else:
-        days_in_stockout = days_delayed - strategic_threshold
-        churn_escalation = (days_in_stockout / 30.0) * (1.0 - switching_friction)
-        calculated_churn = min(0.95, base_churn_prob + churn_escalation)
-        clv_exposure = annualized_clv * calculated_churn
+def calculate_churn_risk(delay_days, stockout_cliff, base_risk=0.02):
+    """
+    Calculates the probability of client abandonment based on days without inventory.
+    Assumes SME landscape where goods are easily substitutable.
+    """
+    if delay_days <= stockout_cliff:
+        return base_risk
         
+    days_in_stockout = delay_days - stockout_cliff
+    escalation = days_in_stockout / 30.0
+    
+    final_risk = base_risk + escalation
+    return min(0.95, final_risk)
+
+def calculate_sla_penalties(delay_days, grace_period, daily_penalty, order_value):
+    """Calculates standard SLA bleeding, capped at the total order value."""
+    days_penalized = max(0, delay_days - grace_period)
+    return min(days_penalized * daily_penalty, order_value)
+
+def evaluate_freight_strategy(order_value, clv, standard_delay, premium_delay, 
+                              grace_period, buffer_days, daily_penalty, 
+                              standard_freight_cost, premium_freight_upgrade_cost):
+    """
+    Evaluates the micro-economics of logistics fulfillment.
+    """
+    stockout_cliff = buffer_days + grace_period
+    
+    # --- Standard Route Baseline ---
+    std_penalties = calculate_sla_penalties(standard_delay, grace_period, daily_penalty, order_value)
+    std_total_delivery_cost = standard_freight_cost + std_penalties
+    std_net_revenue = order_value - std_total_delivery_cost
+    std_margin = std_net_revenue / order_value if order_value > 0 else 0
+    std_churn = calculate_churn_risk(standard_delay, stockout_cliff)
+    
+    # --- Premium Route Mitigation ---
+    prem_total_freight = standard_freight_cost + premium_freight_upgrade_cost
+    prem_penalties = calculate_sla_penalties(premium_delay, grace_period, daily_penalty, order_value)
+    prem_total_delivery_cost = prem_total_freight + prem_penalties
+    prem_net_revenue = order_value - prem_total_delivery_cost
+    prem_margin = prem_net_revenue / order_value if order_value > 0 else 0
+    prem_churn = calculate_churn_risk(premium_delay, stockout_cliff)
+    
+    # --- Mitigation ROI ---
+    avoided_penalties = std_penalties - prem_penalties
+    mitigation_roi = avoided_penalties - premium_freight_upgrade_cost
+    
     return {
-        "penalty": total_sla_penalty,
-        "churn_prob": calculated_churn,
-        "clv_exposure": clv_exposure,
-        "total_damage": total_sla_penalty + clv_exposure
+        "standard": {
+            "delivery_cost": std_total_delivery_cost,
+            "net_revenue": std_net_revenue,
+            "margin": std_margin,
+            "churn_risk": std_churn,
+            "clv_exposure": clv * std_churn
+        },
+        "premium": {
+            "delivery_cost": prem_total_delivery_cost,
+            "net_revenue": prem_net_revenue,
+            "margin": prem_margin,
+            "churn_risk": prem_churn,
+            "clv_exposure": clv * prem_churn
+        },
+        "roi": mitigation_roi
     }
 
-def evaluate_outbound_resilience(
-    order_value: float, annualized_clv: float, standard_freight: float, premium_freight: float,
-    standard_delay_days: int, premium_delay_days: int, daily_sla_penalty: float,
-    client_buffer_days: int, grace_period_days: int, switching_friction: float,
-    base_churn_prob: float = 0.02, alt_market_recovery: float = 0.0
-) -> dict:
-    
-    freight_premium = max(0.0, premium_freight - standard_freight)
-    strategic_threshold = client_buffer_days + grace_period_days
-    
-    std_metrics = _calculate_exposure(standard_delay_days, order_value, annualized_clv, daily_sla_penalty, strategic_threshold, grace_period_days, switching_friction, base_churn_prob)
-    prem_metrics = _calculate_exposure(premium_delay_days, order_value, annualized_clv, daily_sla_penalty, strategic_threshold, grace_period_days, switching_friction, base_churn_prob)
-    
-    total_premium_cost = freight_premium + prem_metrics["total_damage"]
-    abandonment_cost = std_metrics["clv_exposure"] - alt_market_recovery
+def evaluate_mitigation_viability(premium_net_revenue, premium_margin, premium_churn, user_mam_threshold):
+    """
+    Evaluates if the Premium Freight strategy is viable, or if the system 
+    must mandate a strategic pivot evaluation.
+    """
+    is_churn_critical = premium_churn > 0.50
+    is_margin_unacceptable = premium_margin < user_mam_threshold
+    is_absolute_loss = premium_net_revenue < 0
 
-    # ==========================================
-    # DECISION ENGINE (BUSINESS RULES ENFORCED)
-    # ==========================================
+    requires_pivot_escalation = is_churn_critical or is_margin_unacceptable or is_absolute_loss
     
-    # CASE 1: Standard Route is perfectly safe.
-    if standard_delay_days <= strategic_threshold:
-        return {
-            "action": "ABSORB STANDARD DELAY (NO STOCKOUT RISK)",
-            "color": "success", "horizon": _get_horizon(standard_delay_days, strategic_threshold),
-            "freight_premium": 0.0, "residual_penalty": std_metrics["penalty"], "value_at_risk": 0.0,
-            "net_benefit": 0.0, "threshold_days": strategic_threshold, "calculated_churn": std_metrics["churn_prob"],
-            "rationale": "Standard fulfillment arrives before the stockout cliff. Preserve capital."
+    return {
+        "requires_escalation": requires_pivot_escalation,
+        "alerts": {
+            "churn_critical": is_churn_critical,
+            "margin_breach": is_margin_unacceptable,
+            "absolute_loss": is_absolute_loss
         }
-        
-    # CASE 2: Standard breaches, but Premium Freight completely rescues the shipment.
-    elif premium_delay_days <= strategic_threshold:
-        # NO PIVOT ALLOWED. We successfully protect the client.
-        if total_premium_cost < std_metrics["total_damage"]:
-            return {
-                "action": "EXECUTE PREMIUM FREIGHT (TIMELINE COMPRESSION)",
-                "color": "success", "horizon": _get_horizon(premium_delay_days, strategic_threshold),
-                "freight_premium": freight_premium, "residual_penalty": prem_metrics["penalty"], 
-                "value_at_risk": std_metrics["total_damage"], "net_benefit": std_metrics["total_damage"] - total_premium_cost,
-                "threshold_days": strategic_threshold, "calculated_churn": prem_metrics["churn_prob"],
-                "rationale": f"Air freight reduces delay to {premium_delay_days} days, rescuing the client from a stockout. USD {freight_premium:,.2f} justified against USD {std_metrics['total_damage']:,.2f} exposure."
-            }
-        else:
-            return {
-                "action": "ABSORB STANDARD DELAY (PRESERVE CAPITAL)",
-                "color": "warning", "horizon": _get_horizon(standard_delay_days, strategic_threshold),
-                "freight_premium": 0.0, "residual_penalty": std_metrics["penalty"], "value_at_risk": std_metrics["total_damage"],
-                "net_benefit": total_premium_cost - std_metrics["total_damage"], "threshold_days": strategic_threshold, "calculated_churn": std_metrics["churn_prob"],
-                "rationale": f"Standard route damage (USD {std_metrics['total_damage']:,.2f}) is cheaper than the mitigation cost. Absorb the hit."
-            }
-            
-    # CASE 3: Both standard and premium routes result in a stockout. Pivot is on the table.
-    else:
-        if total_premium_cost < std_metrics["total_damage"] and total_premium_cost < abandonment_cost:
-            return {
-                "action": "EXECUTE PREMIUM FREIGHT (DAMAGE CONTROL)",
-                "color": "warning", "horizon": _get_horizon(premium_delay_days, strategic_threshold),
-                "freight_premium": freight_premium, "residual_penalty": prem_metrics["penalty"], 
-                "value_at_risk": std_metrics["total_damage"], "net_benefit": std_metrics["total_damage"] - total_premium_cost,
-                "threshold_days": strategic_threshold, "calculated_churn": prem_metrics["churn_prob"],
-                "rationale": "Premium freight cannot prevent a stockout, but it minimizes SLA fines and churn exposure better than abandoning the client."
-            }
-        elif std_metrics["total_damage"] <= total_premium_cost and std_metrics["total_damage"] <= abandonment_cost:
-            return {
-                "action": "ABSORB STANDARD DELAY (CRITICAL EXPOSURE)",
-                "color": "error", "horizon": _get_horizon(standard_delay_days, strategic_threshold),
-                "freight_premium": 0.0, "residual_penalty": std_metrics["penalty"], "value_at_risk": std_metrics["total_damage"],
-                "net_benefit": total_premium_cost - std_metrics["total_damage"], "threshold_days": strategic_threshold, "calculated_churn": std_metrics["churn_prob"],
-                "rationale": "All mitigations are too expensive. Absorb full SLA and Churn penalties."
-            }
-        else:
-            return {
-                "action": "EXECUTE STRATEGIC PIVOT (REALLOCATE CAPACITY)",
-                "color": "error", "horizon": _get_horizon(standard_delay_days, strategic_threshold),
-                "freight_premium": 0.0, "residual_penalty": 0.0, "value_at_risk": std_metrics["clv_exposure"],
-                "net_benefit": abandonment_cost - total_premium_cost, "threshold_days": strategic_threshold, "calculated_churn": std_metrics["churn_prob"],
-                "rationale": f"Mitigation costs are untenable. Accept account loss risk and reallocate to alternative market yielding USD {alt_market_recovery:,.2f}."
-            }
+    }
