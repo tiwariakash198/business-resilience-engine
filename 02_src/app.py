@@ -7,10 +7,44 @@ import outbound_logic as obl
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Supply Chain Resilience Engine", layout="wide")
-st.title("📦 Supply Chain Resilience Engine")
-st.markdown("Evaluating Logistics Risk & Financial Mitigation Strategies.")
 
-# --- 1. DATA INPUT & UX ONBOARDING ---
+# --- GLOBAL STICKY HEADER ---
+st.markdown(
+    """
+    <style>
+    header[data-testid="stHeader"] {
+        background-color: transparent !important;
+    }
+
+    div.element-container:has(#custom-sticky-header) {
+        position: sticky;
+        top: 0;
+        z-index: 999;
+        background-color: #0E1117; 
+        padding-top: 1rem;
+        padding-bottom: 2rem; /* Doubled the padding to push the line down */
+        border-bottom: 1px solid #333;
+    }
+    </style>
+
+    <div id="custom-sticky-header">
+        <h1 style="margin: 0; padding-bottom: 5px;">📦 Supply Chain Resilience Engine</h1>
+        <p style="margin: 0; color: #a5a5a5;">Evaluating Logistics Risk & Financial Mitigation Strategies.</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# --- 1. ARCHITECTURE NAVIGATION (Top Level) ---
+st.sidebar.header("🧭 Architecture Navigation")
+analytics_mode = st.sidebar.radio(
+    "Select Analytics Engine:",
+    ["Inbound Supply Operations", "Outbound Revenue Defense"]
+)
+
+st.sidebar.divider()
+
+# --- 2. DATA INPUT & UX ONBOARDING ---
 st.sidebar.header("📁 Data Input Pipeline")
 
 # Dual-Option Ingestion Selector
@@ -55,11 +89,16 @@ else:
 
 st.sidebar.divider()
 
+if analytics_mode == "Inbound Supply Operations":
+    st.subheader("🛡️ Inbound Supply Operations")
+    st.markdown("Evaluating Logistics Risk & Financial Mitigation Strategies.")
+    st.divider()
+
 # --- 2. BACKEND PROCESSING & DASHBOARD ---
-if raw_df is not None:
+    if raw_df is not None:
     # Sanitize the data and calculate baselines
-    clean_df = logic.sanitize_inventory_data(raw_df)
-    processed_df = logic.calculate_base_metrics(clean_df)
+        clean_df = logic.sanitize_inventory_data(raw_df)
+        processed_df = logic.calculate_base_metrics(clean_df)
 
     # --- 3. DATA QUALITY UI ---
     if not processed_df['is_valid'].all():
@@ -179,18 +218,18 @@ if raw_df is not None:
                 st.error("**RECOMMENDED ACTION:** Halt Production. Expediting costs more than the lost revenue.")
 
 # --- 7. CARRYING COST CALCULATOR & SENSITIVITY MATRIX ---
-st.divider()
+    st.divider()
 
 # The explicit toggle-in choice to access the TCO module and sensitivity matrix
-activate_tco_module = st.toggle(
+    activate_tco_module = st.toggle(
     "SKU Carrying Cost & Breakeven Analysis",
     value=False,
     help="Toggle ON to unlock custom inventory carrying overhead models and lean vs. buffer breakeven analytics."
 )
 
-if activate_tco_module:
-    st.subheader("Inventory Carrying Cost Rate Calculator")
-    st.markdown("Input your baseline operational expenses to derive your auditable annual holding percentage.")
+    if activate_tco_module:
+        st.subheader("Inventory Carrying Cost Rate Calculator")
+        st.markdown("Input your baseline operational expenses to derive your auditable annual holding percentage.")
 
     # 1. Safely locate your active dataframe
     active_df = None
@@ -311,22 +350,23 @@ if activate_tco_module:
 
 # --- 8. OUTBOUND REVENUE DEFENSE ENGINE ---
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="Outbound Resilience Engine", layout="wide")
+elif analytics_mode == "Outbound Revenue Defense":
+    st.subheader("🚀 Outbound Revenue Defense")
+    st.markdown("Evaluating Logistics Escalation, Financial Exposure, and Mitigation Viability.")
+    st.divider()
 
-st.title("🚀 Outbound Revenue Defense Engine")
-st.markdown("Evaluating Logistics Escalation, Financial Exposure, and Mitigation Viability.")
-st.divider()
+# --- PAGE SETUP ---
+    st.set_page_config(page_title="Outbound Resilience Engine", layout="wide")
 
 # --- DUAL-COLUMN ARCHITECTURE ---
 # Left column takes 30% of the screen, Right column takes 70%
-col_inputs, col_outputs = st.columns([3, 7], gap="large")
+    col_inputs, col_outputs = st.columns([3, 7], gap="large")
 
 # ==========================================
 #        LEFT COLUMN: INPUT PARAMETERS
 # ==========================================
-with col_inputs:
-    st.subheader("⚙️ Scenario Configurations")
+    with col_inputs:
+        st.subheader("⚙️ Scenario Configurations")
     
     with st.expander("1. Core Financials", expanded=True):
         order_value = st.number_input("Order Value ($)", value=40000, step=1000)
@@ -345,17 +385,17 @@ with col_inputs:
         user_mam = st.slider("Minimum Acceptable Margin (MAM)", 0.0, 0.50, 0.05, 0.01)
 
 # --- Data Translation for Backend ---
-derived_premium_delay = max(0, std_delay - days_saved)
-derived_premium_upgrade = max(0, premium_freight - standard_freight)
+    derived_premium_delay = max(0, std_delay - days_saved)
+    derived_premium_upgrade = max(0, premium_freight - standard_freight)
 
 # --- Execute Backend Engine ---
-freight_results = obl.evaluate_freight_strategy(
+    freight_results = obl.evaluate_freight_strategy(
     order_value, clv, std_delay, derived_premium_delay, 
     grace_period, buffer_days, daily_penalty, 
     standard_freight, derived_premium_upgrade
 )
 
-viability = obl.evaluate_mitigation_viability(
+    viability = obl.evaluate_mitigation_viability(
     freight_results["premium"]["net_revenue"],
     freight_results["premium"]["margin"],
     freight_results["premium"]["churn_risk"],
@@ -365,18 +405,18 @@ viability = obl.evaluate_mitigation_viability(
 # ==========================================
 #        RIGHT COLUMN: THE DECISION DESK
 # ==========================================
-with col_outputs:
+    with col_outputs:
     
     # --- ESCALATION PROTOCOL (PIVOT RECOMMENDATION) ---
-    if viability["requires_escalation"]:
-        reasons = []
-        if viability["alerts"]["churn_critical"]: reasons.append("Critical Churn (>50%)")
-        if viability["alerts"]["margin_breach"]: reasons.append(f"Margin Breach (<{user_mam*100:.0f}%)")
-        if viability["alerts"]["absolute_loss"]: reasons.append("Absolute Financial Loss")
+        if viability["requires_escalation"]:
+            reasons = []
+            if viability["alerts"]["churn_critical"]: reasons.append("Critical Churn (>50%)")
+            if viability["alerts"]["margin_breach"]: reasons.append(f"Margin Breach (<{user_mam*100:.0f}%)")
+            if viability["alerts"]["absolute_loss"]: reasons.append("Absolute Financial Loss")
         
-        st.error(f"⚠️ **CRITICAL LOGISTICS FAILURE DETECTED:** {', '.join(reasons)}. Logistical mitigation is mathematically unviable. **Strategic Pivot evaluation recommended.**")
-    else:
-        st.success("✅ **Logistics Strategy Viable:** Premium margin and churn risk are operating within acceptable corporate thresholds.")
+            st.error(f"⚠️ **CRITICAL LOGISTICS FAILURE DETECTED:** {', '.join(reasons)}. Logistical mitigation is mathematically unviable. **Strategic Pivot evaluation recommended.**")
+        else:
+            st.success("✅ **Logistics Strategy Viable:** Premium margin and churn risk are operating within acceptable corporate thresholds.")
 
     # --- DECISION RESCUE DESK: LOGISTICS DEFENSE ---
     st.subheader("Decision Rescue Desk: Operational Freight Defense")
