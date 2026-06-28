@@ -49,6 +49,8 @@ To utilize the core engine, upload a CSV containing these 7 foundational metrics
 
 ## ***🚀 Local Installation & Execution***
 
+[🔗 View the live repository on GitHub](https://github.com/tiwariakash198/business-resilience-engine)
+
 To run the resilience engine locally, follow these steps in your terminal:
 
 ```bash
