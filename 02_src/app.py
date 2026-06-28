@@ -153,69 +153,71 @@ if analytics_mode == "Inbound Supply Operations":
 
     st.dataframe(display_df.style.map(highlight_risk, subset=['Risk Status']), use_container_width=True)
 
-    # --- 5. THE MITIGATION SIMULATOR (SIDEBAR) ---
-    st.sidebar.header("🛠️ Mitigation Simulator")
-    st.sidebar.markdown("Test alternate supply scenarios for critical items.")
-
-    # Filter to only show CRITICAL items in the dropdown
+# --- 5. THE MITIGATION SIMULATOR (MAIN DASHBOARD) ---
+        # Filter to only show CRITICAL items in the dropdown first
     critical_items = processed_df[processed_df['Risk Status'] == 'CRITICAL']['SKU'].tolist()
 
     if not critical_items:
-        st.sidebar.success("No Critical SKUs detected. Operations are nominal.")
+            st.success("No Critical SKUs detected. Operations are nominal.")
     else:
-        selected_sku = st.sidebar.selectbox("Select Critical SKU to Rescue:", critical_items)
-        
-        st.sidebar.divider()
-        
-        # Sliders for "What-If" Analysis
-        st.sidebar.markdown("**Alternate Supplier Terms:**")
-        freight_premium = st.sidebar.slider("Emergency Freight Cost ($/unit)", min_value=0, max_value=500, value=100, step=10)
-        tariff_pct = st.sidebar.slider("Tariff Exposure (%)", min_value=0, max_value=50, value=15, step=1)
-        days_saved = st.sidebar.slider("Lead Time Saved (Days)", min_value=0, max_value=30, value=10, step=1)
-        
-        # --- 6. RUN SIMULATION & DISPLAY RESULTS ---
-        # Get the row data for the selected SKU
-        sku_data = processed_df[processed_df['SKU'] == selected_sku].iloc[0]
-        
-        st.markdown("---")
-        st.subheader(f"Simulation Results: Rescuing {selected_sku}")
-        
-        # Run the calculator from logic.py
-        sim_results = logic.simulate_mitigation_scenario(sku_data, freight_premium, tariff_pct, days_saved)
-        
-        # THE COST BREAKDOWN CALCULATOR
-        with st.expander(f"🔍 View Landed Cost Breakdown for {selected_sku}"):
-            tariff_cost = sku_data['Alt Unit Cost'] * (tariff_pct / 100)
+            # Create a 2-column layout to compress the UI
+            sim_col1, sim_col2 = st.columns(2)
             
-            st.markdown(f"""
-            **Regular Supplier:** ${sku_data['Regular Unit Cost']:,.2f} per unit
+            # LEFT COLUMN: Headers and Dropdown
+            with sim_col1:
+                st.subheader("🛠️ Mitigation Simulator")
+                st.caption("Test alternate supply scenarios for critical items.")
+                selected_sku = st.selectbox("Select Critical SKU to Rescue:", critical_items)
+                
+            # RIGHT COLUMN: The Sliders inside the Expander
+            with sim_col2:
+                with st.expander("Alternate Supplier Terms", expanded=True):
+                    freight_premium = st.slider("Emergency Freight ($/unit)", min_value=0, max_value=500, value=100, step=10)
+                    tariff_pct = st.slider("Tariff Exposure (%)", min_value=0, max_value=50, value=15, step=1)
+                    days_saved = st.slider("Lead Time Saved (Days)", min_value=0, max_value=30, value=10, step=1)
             
-            **Emergency Supplier (Landed Cost): ${sim_results['Alt Landed Cost']:,.2f} per unit**
-            * **Base Price:** ${sku_data['Alt Unit Cost']:,.2f}
-            * **Freight Premium:** +${freight_premium:,.2f}
-            * **Tariff Tax ({tariff_pct}%):** +${tariff_cost:,.2f}
+            # --- 6. RUN SIMULATION & DISPLAY RESULTS ---
+            # Get the row data for the selected SKU
+            sku_data = processed_df[processed_df['SKU'] == selected_sku].iloc[0]
             
-            *Mitigation Cost represents the difference between Regular and Emergency Landed Cost, multiplied by the units needed during the stoppage gap.*
-            """)
-        
-        st.write("") # Visual spacing
-        
-        # Display visually using columns
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric(label="Revenue Saved (Loss Avoided)", value=f"${sim_results['Revenue Saved']:,.2f}")
-        with col2:
-            st.metric(label="Cost to Mitigate (Premium)", value=f"${sim_results['Mitigation Cost']:,.2f}")
-        with col3:
-            # NPI Formatting
-            npi = sim_results['Net Profit Impact']
-            if npi > 0:
-                st.metric(label="Net Profit Impact (NPI)", value=f"+${npi:,.2f}")
-                st.success("**RECOMMENDED ACTION:** Expedite Supply. The revenue saved justifies the premium.")
-            else:
-                st.metric(label="Net Profit Impact (NPI)", value=f"${npi:,.2f}")
-                st.error("**RECOMMENDED ACTION:** Halt Production. Expediting costs more than the lost revenue.")
+            st.divider() 
+            st.subheader(f"📊 Simulation Results: Rescuing {selected_sku}")
+          
+            sim_results = logic.simulate_mitigation_scenario(sku_data, freight_premium, tariff_pct, days_saved)
+            
+            # THE COST BREAKDOWN CALCULATOR
+            with st.expander(f"🔍 View Landed Cost Breakdown for {selected_sku}"):
+                tariff_cost = sku_data['Alt Unit Cost'] * (tariff_pct / 100)
+                
+                st.markdown(f"""
+                **Regular Supplier:** ${sku_data['Regular Unit Cost']:,.2f} per unit
+                
+                **Emergency Supplier (Landed Cost): ${sim_results['Alt Landed Cost']:,.2f} per unit**
+                * **Base Price:** ${sku_data['Alt Unit Cost']:,.2f}
+                * **Freight Premium:** +${freight_premium:,.2f}
+                * **Tariff Tax ({tariff_pct}%):** +${tariff_cost:,.2f}
+                
+                *Mitigation Cost represents the difference between Regular and Emergency Landed Cost, multiplied by the units needed during the stoppage gap.*
+                """)
+            
+            st.write("") # Visual spacing
+            
+            # Display visually using columns
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric(label="Revenue Saved (Loss Avoided)", value=f"${sim_results['Revenue Saved']:,.2f}")
+            with col2:
+                st.metric(label="Cost to Mitigate (Premium)", value=f"${sim_results['Mitigation Cost']:,.2f}")
+            with col3:
+                # NPI Formatting
+                npi = sim_results['Net Profit Impact']
+                if npi > 0:
+                    st.metric(label="Net Profit Impact (NPI)", value=f"+${npi:,.2f}")
+                    st.success("**RECOMMENDED ACTION:** Expedite Supply. The revenue saved justifies the premium.")
+                else:
+                    st.metric(label="Net Profit Impact (NPI)", value=f"${npi:,.2f}")
+                    st.error("**RECOMMENDED ACTION:** Halt Production. Expediting costs more than the lost revenue.")
 
 # --- 7. CARRYING COST CALCULATOR & SENSITIVITY MATRIX ---
     st.divider()
@@ -250,102 +252,103 @@ if analytics_mode == "Inbound Supply Operations":
         except Exception:
             csv_total_value = 0.0
 
-    st.markdown("##### 📦 Warehouse Baseline Valuation")
-    
-    baseline_option = st.radio(
-        "Select Inventory Valuation Basis:",
-        options=["Auto-Calculate from Uploaded CSV", "Override with Total Facility Baseline"],
-        index=0,
-        horizontal=True
-    )
-
-    if baseline_option == "Auto-Calculate from Uploaded CSV" and active_df is not None:
-        st.info(f"Using uploaded dataset baseline: **${csv_total_value:,.2f}**")
-        total_inv_value = csv_total_value
-        if total_inv_value == 0:
-            st.warning("Uploaded CSV yielded $0 valuation. Please use the Override option below.")
-    else:
-        total_inv_value = st.number_input(
-            "Total Facility Inventory Baseline ($)", 
-            min_value=0.0, 
-            value=1000000.0, 
-            step=50000.0,
-            help="The total average dollar value of all stock sitting across your entire facility."
+    if activate_tco_module:
+        st.markdown("##### 📦 Warehouse Baseline Valuation")
+        
+        baseline_option = st.radio(
+            "Select Inventory Valuation Basis:",
+            options=["Auto-Calculate from Uploaded CSV", "Override with Total Facility Baseline"],
+            index=0,
+            horizontal=True
         )
 
-    st.markdown("##### 💸 Granular Annual Overhead Spend")
-    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
-    
-    with col_c1:
-        st.markdown("**1. Capital Cost**")
-        wacc_val = st.number_input("Corporate WACC (%)", min_value=0.0, max_value=40.0, value=10.0, step=0.5,
-                                   help="Weighted Average Cost of Capital (Opportunity cost of tied-up cash).")
-    
-    with col_c2:
-        st.markdown("**2. Storage Overhead**")
-        rent_val = st.number_input("Annual Rent & Utilities ($)", min_value=0.0, value=50000.0, step=5000.0)
-        labor_val = st.number_input("Warehouse Labor & Sec. ($)", min_value=0.0, value=40000.0, step=5000.0)
-        
-    with col_c3:
-        st.markdown("**3. Service Overhead**")
-        ins_val = st.number_input("Annual Insurance Premium ($)", min_value=0.0, value=15000.0, step=1000.0)
-        tax_val = st.number_input("Localized Inventory Taxes ($)", min_value=0.0, value=5000.0, step=1000.0)
-        
-    with col_c4:
-        st.markdown("**4. Risk Exposure**")
-        shrink_val = st.number_input("Est. Annual Shrinkage ($)", min_value=0.0, value=10000.0, step=1000.0, help="Loss via theft, damage, or misplacement.")
-        scrap_val = st.number_input("Scrap & Obsolescence ($)", min_value=0.0, value=20000.0, step=2000.0, help="Written-off inventory that expired or rusted.")
-
-    tco_results = logic.calculate_carrying_cost_rate(
-        total_inv_value, wacc_val, rent_val, labor_val, ins_val, tax_val, shrink_val, scrap_val
-    )
-
-    if tco_results.get("error"):
-        st.error(tco_results["error"])
-        custom_rate = 0.0
-    else:
-        custom_rate = tco_results["rate_pct"]
-        st.success(f"### 📊 Derived Annual Holding Rate: {custom_rate}%")
-        st.caption(f"Total Facility Overhead Spend: **${tco_results['total_dollars']:,.2f}** per year.")
-
-    # --- MODULE 2: SENSITIVITY MATRIX & TRADE-OFF ---
-    if custom_rate > 0 and 'sim_results' in locals() and active_df is not None:
-        st.subheader("⚖️ Holding Overhead vs. Emergency Mitigation Breakeven")
-        st.markdown("Select a specific SKU from your dataset to evaluate its storage vs. expedite trade-off:")
-        
-        clean_sku_df = active_df[
-            (active_df['Current Stock'].astype(str).str.lower() != 'not provided') & 
-            (active_df['Regular Unit Cost'].astype(str).str.lower() != 'not provided')
-        ]
-        
-        if not clean_sku_df.empty:
-            sku_list = clean_sku_df['SKU'].tolist()
-            selected_sku_id = st.selectbox("🎯 Select Target SKU for Breakeven Analysis:", options=sku_list)
-            
-            active_row = clean_sku_df[clean_sku_df['SKU'] == selected_sku_id].iloc[0]
-            
-            current_stock_val = float(active_row['Current Stock'])
-            unit_cost_val = float(active_row['Regular Unit Cost'])
-            
-            sku_annual_overhead = logic.calculate_sku_holding_cost(current_stock_val, unit_cost_val, custom_rate)
-            mitigation_cost_dollars = sim_results['Mitigation Cost']   # From your P2 emergency simulator
-            
-            delta_val, rec_text, tag = logic.evaluate_breakeven_delta(sku_annual_overhead, mitigation_cost_dollars)
-            
-            col_m1, col_m2, col_m3 = st.columns(3)
-            with col_m1:
-                st.metric(f"SKU ({selected_sku_id}) Annual Overhead", f"${sku_annual_overhead:,.2f}")
-            with col_m2:
-                st.metric("Emergency Expedite Premium", f"${mitigation_cost_dollars:,.2f}")
-            with col_m3:
-                if tag == "LEAN_FAVORED":
-                    st.metric("Breakeven Delta", f"${delta_val:,.2f}", delta="Cheaper to Expedite")
-                else:
-                    st.metric("Breakeven Delta", f"${delta_val:,.2f}", delta="-Cheaper to Hold Buffer", delta_color="inverse")
-                    
-            st.info(f"**Executive Action Receipt:** {rec_text}")
+        if baseline_option == "Auto-Calculate from Uploaded CSV" and active_df is not None:
+            st.info(f"Using uploaded dataset baseline: **${csv_total_value:,.2f}**")
+            total_inv_value = csv_total_value
+            if total_inv_value == 0:
+                st.warning("Uploaded CSV yielded $0 valuation. Please use the Override option below.")
         else:
-            st.warning("No valid numeric SKU rows available to run the sensitivity matrix.")
+            total_inv_value = st.number_input(
+                "Total Facility Inventory Baseline ($)", 
+                min_value=0.0, 
+                value=1000000.0, 
+                step=50000.0,
+                help="The total average dollar value of all stock sitting across your entire facility."
+            )
+
+        st.markdown("##### 💸 Granular Annual Overhead Spend")
+        col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+        
+        with col_c1:
+            st.markdown("**1. Capital Cost**")
+            wacc_val = st.number_input("Corporate WACC (%)", min_value=0.0, max_value=40.0, value=10.0, step=0.5,
+                                       help="Weighted Average Cost of Capital (Opportunity cost of tied-up cash).")
+        
+        with col_c2:
+            st.markdown("**2. Storage Overhead**")
+            rent_val = st.number_input("Annual Rent & Utilities ($)", min_value=0.0, value=50000.0, step=5000.0)
+            labor_val = st.number_input("Warehouse Labor & Sec. ($)", min_value=0.0, value=40000.0, step=5000.0)
+            
+        with col_c3:
+            st.markdown("**3. Service Overhead**")
+            ins_val = st.number_input("Annual Insurance Premium ($)", min_value=0.0, value=15000.0, step=1000.0)
+            tax_val = st.number_input("Localized Inventory Taxes ($)", min_value=0.0, value=5000.0, step=1000.0)
+            
+        with col_c4:
+            st.markdown("**4. Risk Exposure**")
+            shrink_val = st.number_input("Est. Annual Shrinkage ($)", min_value=0.0, value=10000.0, step=1000.0, help="Loss via theft, damage, or misplacement.")
+            scrap_val = st.number_input("Scrap & Obsolescence ($)", min_value=0.0, value=20000.0, step=2000.0, help="Written-off inventory that expired or rusted.")
+
+        tco_results = logic.calculate_carrying_cost_rate(
+            total_inv_value, wacc_val, rent_val, labor_val, ins_val, tax_val, shrink_val, scrap_val
+        )
+
+        if tco_results.get("error"):
+            st.error(tco_results["error"])
+            custom_rate = 0.0
+        else:
+            custom_rate = tco_results["rate_pct"]
+            st.success(f"### 📊 Derived Annual Holding Rate: {custom_rate}%")
+            st.caption(f"Total Facility Overhead Spend: **${tco_results['total_dollars']:,.2f}** per year.")
+
+        # --- MODULE 2: SENSITIVITY MATRIX & TRADE-OFF ---
+        if custom_rate > 0 and 'sim_results' in locals() and active_df is not None:
+            st.subheader("⚖️ Holding Overhead vs. Emergency Mitigation Breakeven")
+            st.markdown("Select a specific SKU from your dataset to evaluate its storage vs. expedite trade-off:")
+            
+            clean_sku_df = active_df[
+                (active_df['Current Stock'].astype(str).str.lower() != 'not provided') & 
+                (active_df['Regular Unit Cost'].astype(str).str.lower() != 'not provided')
+            ]
+            
+            if not clean_sku_df.empty:
+                sku_list = clean_sku_df['SKU'].tolist()
+                selected_sku_id = st.selectbox("🎯 Select Target SKU for Breakeven Analysis:", options=sku_list)
+                
+                active_row = clean_sku_df[clean_sku_df['SKU'] == selected_sku_id].iloc[0]
+                
+                current_stock_val = float(active_row['Current Stock'])
+                unit_cost_val = float(active_row['Regular Unit Cost'])
+                
+                sku_annual_overhead = logic.calculate_sku_holding_cost(current_stock_val, unit_cost_val, custom_rate)
+                mitigation_cost_dollars = sim_results['Mitigation Cost']   # From your P2 emergency simulator
+                
+                delta_val, rec_text, tag = logic.evaluate_breakeven_delta(sku_annual_overhead, mitigation_cost_dollars)
+                
+                col_m1, col_m2, col_m3 = st.columns(3)
+                with col_m1:
+                    st.metric(f"SKU ({selected_sku_id}) Annual Overhead", f"${sku_annual_overhead:,.2f}")
+                with col_m2:
+                    st.metric("Emergency Expedite Premium", f"${mitigation_cost_dollars:,.2f}")
+                with col_m3:
+                    if tag == "LEAN_FAVORED":
+                        st.metric("Breakeven Delta", f"${delta_val:,.2f}", delta="Cheaper to Expedite")
+                    else:
+                        st.metric("Breakeven Delta", f"${delta_val:,.2f}", delta="-Cheaper to Hold Buffer", delta_color="inverse")
+                        
+                st.info(f"**Executive Action Receipt:** {rec_text}")
+            else:
+                st.warning("No valid numeric SKU rows available to run the sensitivity matrix.")
 
 
 # --- 8. OUTBOUND REVENUE DEFENSE ENGINE ---
