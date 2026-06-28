@@ -38,11 +38,17 @@ To utilize the core engine, upload a CSV containing these 7 foundational metrics
 
 
  `SKU`: Unique identifier for the material/part
+
  `Current Stock`: Total physical units currently available
+
  `Daily Consumption`: Units consumed per day of active production
+
  `Total Lead Time`: Combined days required for production, transit, and safety buffer
+
  `Regular Unit Cost`: Baseline purchase price per unit from the primary supplier
+
  `Alt Unit Cost`: Emergency base price per unit from a secondary backup supplier
+
  `Sales Price`: Finished product revenue dependent on this specific part
 
 ---
@@ -54,6 +60,7 @@ To run the resilience engine locally, follow these steps in your terminal:
 **1. Clone the repository**
 
 git clone https://github.com/tiwariakash198/business-resilience-engine.git
+
 cd business-resilience-engine
 
 **2. Install the required dependencies**
