@@ -49,13 +49,10 @@ To utilize the core engine, upload a CSV containing these 7 foundational metrics
 
 ## ***🚀 Local Installation & Execution***
 
-[🔗 View the live repository on GitHub](https://github.com/tiwariakash198/business-resilience-engine)
-
 To run the resilience engine locally, follow these steps in your terminal:
 
-```bash
 # 1. Clone the repository
-git clone [https://github.com/tiwariakash198/business-resilience-engine.git](https://github.com/tiwariakash198/business-resilience-engine.git)
+git clone https://github.com/tiwariakash198/business-resilience-engine.git
 cd business-resilience-engine
 
 # 2. Install the required dependencies
@@ -63,4 +60,3 @@ pip install pandas streamlit
 
 # 3. Launch the dashboard locally
 streamlit run app.py
-```
