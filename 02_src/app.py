@@ -354,98 +354,112 @@ if analytics_mode == "Inbound Supply Operations":
 # --- 8. OUTBOUND REVENUE DEFENSE ENGINE ---
 
 elif analytics_mode == "Outbound Revenue Defense":
+    
+    # Notice we removed set_page_config from here!
     st.subheader("🚀 Outbound Revenue Defense")
     st.markdown("Evaluating Logistics Escalation, Financial Exposure, and Mitigation Viability.")
     st.divider()
 
-# --- PAGE SETUP ---
-    st.set_page_config(page_title="Outbound Resilience Engine", layout="wide")
-
-# --- DUAL-COLUMN ARCHITECTURE ---
-# Left column takes 30% of the screen, Right column takes 70%
-    col_inputs, col_outputs = st.columns([3, 7], gap="large")
-
-# ==========================================
-#        LEFT COLUMN: INPUT PARAMETERS
-# ==========================================
+    # --- DUAL-COLUMN ARCHITECTURE ---
+    # Left column takes 30% of the screen, Right column takes 70%
+    col_inputs, col_outputs = st.columns([0.3, 0.7], gap="large")
+    
+    # ==========================================
+    #        LEFT COLUMN: INPUT PARAMETERS
+    # ==========================================
     with col_inputs:
         st.subheader("⚙️ Scenario Configurations")
-    
-    with st.expander("1. Core Financials", expanded=True):
-        order_value = st.number_input("Order Value ($)", value=40000, step=1000)
-        clv = st.number_input("Total Account CLV ($)", value=300000, step=10000)
-        daily_penalty = st.number_input("Daily SLA Penalty ($)", value=1000, step=100)
         
-    with st.expander("2. Timeline & Mitigation", expanded=True):
-        buffer_days = st.number_input("Client Buffer (Days)", value=10, step=1)
-        grace_period = st.number_input("SLA Grace Period (Days)", value=3, step=1)
-        std_delay = st.number_input("Standard Delay (Days)", value=35, step=1)
-        days_saved = st.number_input("Days Saved (by Premium Freight)", value=23, step=1)
-        
-    with st.expander("3. Freight & Thresholds", expanded=True):
-        standard_freight = st.number_input("Standard Freight Cost ($)", value=5000, step=500)
-        premium_freight = st.number_input("Premium Freight Cost ($)", value=20000, step=1000)
-        user_mam = st.slider("Minimum Acceptable Margin (MAM)", 0.0, 0.50, 0.05, 0.01)
+        with st.expander("1. Core Financials", expanded=True):
+            order_value = st.number_input("Order Value ($)", value=40000, step=1000)
+            clv = st.number_input("Total Account CLV ($)", value=300000, step=10000)
+            daily_penalty = st.number_input("Daily SLA Penalty ($)", value=1000, step=100)
+            
+        with st.expander("2. Timeline & Mitigation", expanded=True):
+            buffer_days = st.number_input("Client Buffer (Days)", value=10, step=1)
+            grace_period = st.number_input("SLA Grace Period (Days)", value=3, step=1)
+            std_delay = st.number_input("Standard Delay (Days)", value=35, step=1)
+            days_saved = st.number_input("Days Saved (by Premium Freight)", value=23, step=1)
+            
+        with st.expander("3. Freight & Thresholds", expanded=True):
+            standard_freight = st.number_input("Standard Freight Cost ($)", value=5000, step=500)
+            premium_freight = st.number_input("Premium Freight Cost ($)", value=20000, step=1000)
+            user_mam = st.slider("Minimum Acceptable Margin (MAM)", 0.0, 0.50, 0.05, 0.01)
 
-# --- Data Translation for Backend ---
+    # --- Data Translation for Backend ---
     derived_premium_delay = max(0, std_delay - days_saved)
     derived_premium_upgrade = max(0, premium_freight - standard_freight)
 
-# --- Execute Backend Engine ---
+    # --- Execute Backend Engine ---
     freight_results = obl.evaluate_freight_strategy(
-    order_value, clv, std_delay, derived_premium_delay, 
-    grace_period, buffer_days, daily_penalty, 
-    standard_freight, derived_premium_upgrade
-)
+        order_value, clv, std_delay, derived_premium_delay, 
+        grace_period, buffer_days, daily_penalty, 
+        standard_freight, derived_premium_upgrade
+    )
 
     viability = obl.evaluate_mitigation_viability(
-    freight_results["premium"]["net_revenue"],
-    freight_results["premium"]["margin"],
-    freight_results["premium"]["churn_risk"],
-    user_mam
-)
+        freight_results["premium"]["net_revenue"],
+        freight_results["premium"]["margin"],
+        freight_results["premium"]["churn_risk"],
+        user_mam
+    )
 
-# ==========================================
-#        RIGHT COLUMN: THE DECISION DESK
-# ==========================================
+    # ==========================================
+    #        RIGHT COLUMN: THE DECISION DESK
+    # ==========================================
     with col_outputs:
-    
-    # --- ESCALATION PROTOCOL (PIVOT RECOMMENDATION) ---
+        
+        # 1. HEADER FIRST
+        st.subheader("🛡️ Decision Rescue Desk: Operational Freight Defense")
+        
+        # 2. ESCALATION PROTOCOL (Moved below subheader)
         if viability["requires_escalation"]:
             reasons = []
             if viability["alerts"]["churn_critical"]: reasons.append("Critical Churn (>50%)")
             if viability["alerts"]["margin_breach"]: reasons.append(f"Margin Breach (<{user_mam*100:.0f}%)")
             if viability["alerts"]["absolute_loss"]: reasons.append("Absolute Financial Loss")
-        
+            
             st.error(f"⚠️ **CRITICAL LOGISTICS FAILURE DETECTED:** {', '.join(reasons)}. Logistical mitigation is mathematically unviable. **Strategic Pivot evaluation recommended.**")
         else:
             st.success("✅ **Logistics Strategy Viable:** Premium margin and churn risk are operating within acceptable corporate thresholds.")
 
-    # --- DECISION RESCUE DESK: LOGISTICS DEFENSE ---
-    st.subheader("Decision Rescue Desk: Operational Freight Defense")
-    
-    d1_col1, d1_col2, d1_col3 = st.columns(3)
-    std = freight_results["standard"]
-    prem = freight_results["premium"]
-
-    with d1_col1:
-        st.markdown("**Standard Operations**")
-        st.metric("Total Delivery Cost", f"${std['delivery_cost']:,.0f}")
-        st.metric("Net Earned Revenue", f"${std['net_revenue']:,.0f}")
-        st.metric("Margin Retention", f"{std['margin']*100:.1f}%")
-        st.metric("Account Churn Risk", f"{std['churn_risk']*100:.1f}%")
-
-    with d1_col2:
-        st.markdown("**Premium Freight Operations**")
-        st.metric("Total Delivery Cost", f"${prem['delivery_cost']:,.0f}", delta=f"${prem['delivery_cost'] - std['delivery_cost']:,.0f}", delta_color="inverse")
-        st.metric("Net Earned Revenue", f"${prem['net_revenue']:,.0f}", delta=f"${prem['net_revenue'] - std['net_revenue']:,.0f}")
-        st.metric("Margin Retention", f"{prem['margin']*100:.1f}%", delta=f"{(prem['margin'] - std['margin'])*100:.1f}%")
-        st.metric("Account Churn Risk", f"{prem['churn_risk']*100:.1f}%", delta=f"{(prem['churn_risk'] - std['churn_risk'])*100:.1f}%", delta_color="inverse")
-
-    with d1_col3:
-        st.markdown("**Mitigation Viability**")
-        roi_color = "normal" if freight_results["roi"] >= 0 else "inverse"
-        st.metric("Net Impact (ROI)", f"${freight_results['roi']:,.0f}", delta=f"${freight_results['roi']:,.0f}", delta_color=roi_color)
+        st.write("") # Quick spacer
         
-        break_even_days = derived_premium_upgrade / daily_penalty if daily_penalty > 0 else 0
-        st.info(f"💡 **Break-Even Horizon:** The premium flight must save > {break_even_days:.1f} days to mathematically pay for the ${derived_premium_upgrade:,.0f} cost difference.")
+        # --- DATA PREP ---
+        std = freight_results["standard"]
+        prem = freight_results["premium"]
+
+        # --- ROW 1: STANDARD OPERATIONS ---
+        st.markdown("### Standard Operations")
+        # Spread the 4 metrics evenly across the row
+        std_m1, std_m2, std_m3, std_m4 = st.columns(4)
+        std_m1.metric("Total Delivery Cost", f"${std['delivery_cost']:,.0f}")
+        std_m2.metric("Net Earned Revenue", f"${std['net_revenue']:,.0f}")
+        std_m3.metric("Margin Retention", f"{std['margin']*100:.1f}%")
+        std_m4.metric("Account Churn Risk", f"{std['churn_risk']*100:.1f}%")
+
+        st.divider()
+
+        # --- ROW 2: PREMIUM FREIGHT OPERATIONS ---
+        st.markdown("### Premium Freight Operations")
+        # Spread the 4 metrics evenly across the row
+        prem_m1, prem_m2, prem_m3, prem_m4 = st.columns(4)
+        prem_m1.metric("Total Delivery Cost", f"${prem['delivery_cost']:,.0f}", delta=f"${prem['delivery_cost'] - std['delivery_cost']:,.0f}", delta_color="inverse")
+        prem_m2.metric("Net Earned Revenue", f"${prem['net_revenue']:,.0f}", delta=f"${prem['net_revenue'] - std['net_revenue']:,.0f}")
+        prem_m3.metric("Margin Retention", f"{prem['margin']*100:.1f}%", delta=f"{(prem['margin'] - std['margin'])*100:.1f}%")
+        prem_m4.metric("Account Churn Risk", f"{prem['churn_risk']*100:.1f}%", delta=f"{(prem['churn_risk'] - std['churn_risk'])*100:.1f}%", delta_color="inverse")
+
+        st.divider()
+
+        # --- ROW 3: MITIGATION VIABILITY ---
+        st.markdown("### Mitigation Viability")
+        # Using a 1:3 ratio so the small metric is on the left, and the long text box has plenty of room on the right
+        viab_m1, viab_m2 = st.columns([1, 3])
+        
+        with viab_m1:
+            roi_color = "normal" if freight_results["roi"] >= 0 else "inverse"
+            st.metric("Net Impact (ROI)", f"${freight_results['roi']:,.0f}", delta=f"${freight_results['roi']:,.0f}", delta_color=roi_color)
+            
+        with viab_m2:
+            break_even_days = derived_premium_upgrade / daily_penalty if daily_penalty > 0 else 0
+            st.info(f"💡 **Break-Even Horizon:** The premium flight must save > {break_even_days:.1f} days to mathematically pay for the ${derived_premium_upgrade:,.0f} cost difference.")
